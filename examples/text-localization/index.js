@@ -49,6 +49,10 @@ class Example extends React.Component {
         body: {
           noMatch: "Sorry we could not find any records!",
         },
+        pagination:{
+          next: "Following page",
+          previous: "Preceding page"
+        },
         filter: {
           all: "All Records",
           title: "OUR FILTERS",

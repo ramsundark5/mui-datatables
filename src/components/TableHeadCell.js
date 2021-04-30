@@ -1,3 +1,4 @@
+import Button from '@material-ui/core/Button';
 import clsx from 'clsx';
 import HelpIcon from '@material-ui/icons/Help';
 import MuiTooltip from '@material-ui/core/Tooltip';
@@ -31,22 +32,26 @@ const useStyles = makeStyles(
     },
     sortAction: {
       display: 'flex',
-      verticalAlign: 'top',
       cursor: 'pointer',
     },
     dragCursor: {
       cursor: 'grab',
     },
     sortLabelRoot: {
-      height: '10px',
+      height: '20px',
     },
     sortActive: {
       color: theme.palette.text.primary,
     },
     toolButton: {
+      textTransform: 'none',
+      marginLeft: '-8px',
+      minWidth: 0,
+      marginRight: '8px',
+    },
+    contentWrapper: {
       display: 'flex',
-      outline: 'none',
-      cursor: 'pointer',
+      alignItems: 'center',
     },
     hintIconAlone: {
       marginTop: '-3px',
@@ -106,8 +111,14 @@ const TableHeadCell = ({
   const sortActive = sortDirection !== 'none' && sortDirection !== undefined;
   const ariaSortDirection = sortDirection === 'none' ? false : sortDirection;
 
+  const isDraggingEnabled = () => {
+    if (!draggingHook) return false;
+    return options.draggableColumns && options.draggableColumns.enabled && column.draggable !== false;
+  };
+
   const sortLabelProps = {
     classes: { root: classes.sortLabelRoot },
+    tabIndex: -1,
     active: sortActive,
     hideSortIcon: true,
     ...(ariaSortDirection ? { direction: sortDirection } : {}),
@@ -154,11 +165,6 @@ const TableHeadCell = ({
     timers,
   });
 
-  const isDraggingEnabled = () => {
-    if (!draggingHook) return false;
-    return options.draggableColumns && options.draggableColumns.enabled && column.draggable !== false;
-  };
-
   const cellClass = clsx({
     [classes.root]: true,
     [classes.fixedHeader]: options.fixedHeader,
@@ -181,13 +187,12 @@ const TableHeadCell = ({
 
   const closeTooltip = () => {
     setSortTooltipOpen(false);
-    setDragging(true);
   };
 
   return (
     <TableCell
       ref={ref => {
-        drop(ref);
+        drop && drop(ref);
         setCellRef && setCellRef(index + 1, colPosition + 1, ref);
       }}
       className={cellClass}
@@ -198,17 +203,10 @@ const TableHeadCell = ({
       onMouseDown={closeTooltip}
       {...otherProps}>
       {options.sort && sort ? (
-        <span
-          role="button"
-          onKeyUp={handleKeyboardSortInput}
-          onClick={handleSortClick}
-          className={classes.toolButton}
-          data-testid={`headcol-${index}`}
-          ref={isDraggingEnabled() ? dragRef : null}
-          tabIndex={0}>
+        <span className={classes.contentWrapper}>
           <Tooltip
             title={getTooltipTitle()}
-            placement={'bottom-start'}
+            placement="bottom"
             open={sortTooltipOpen}
             onOpen={() => (dragging ? setSortTooltipOpen(false) : setSortTooltipOpen(true))}
             onClose={() => setSortTooltipOpen(false)}
@@ -216,19 +214,27 @@ const TableHeadCell = ({
               tooltip: classes.tooltip,
               popper: classes.mypopper,
             }}>
-            <div className={classes.sortAction}>
-              <div
-                className={clsx({
-                  [classes.data]: true,
-                  [classes.sortActive]: sortActive,
-                  [classes.dragCursor]: isDraggingEnabled(),
-                })}>
-                {children}
-              </div>
+            <Button
+              variant="text"
+              onKeyUp={handleKeyboardSortInput}
+              onClick={handleSortClick}
+              className={classes.toolButton}
+              data-testid={`headcol-${index}`}
+              ref={isDraggingEnabled() ? dragRef : null}>
               <div className={classes.sortAction}>
-                <TableSortLabel {...sortLabelProps} />
+                <div
+                  className={clsx({
+                    [classes.data]: true,
+                    [classes.sortActive]: sortActive,
+                    [classes.dragCursor]: isDraggingEnabled(),
+                  })}>
+                  {children}
+                </div>
+                <div className={classes.sortAction}>
+                  <TableSortLabel {...sortLabelProps} />
+                </div>
               </div>
-            </div>
+            </Button>
           </Tooltip>
           {hint && (
             <Tooltip title={hint}>

@@ -11,11 +11,10 @@ import DownloadIcon from '@material-ui/icons/CloudDownload';
 import PrintIcon from '@material-ui/icons/Print';
 import ViewColumnIcon from '@material-ui/icons/ViewColumn';
 import FilterIcon from '@material-ui/icons/FilterList';
-import ReactToPrint from 'react-to-print';
+import ReactToPrint, { PrintContextConsumer } from 'react-to-print';
 import find from 'lodash.find';
 import { withStyles } from '@material-ui/core/styles';
 import { createCSVDownload, downloadCSV } from '../utils';
-import cloneDeep from 'lodash.clonedeep';
 import MuiTooltip from '@material-ui/core/Tooltip';
 
 export const defaultToolbarStyles = theme => ({
@@ -291,16 +290,22 @@ class TableToolbar extends React.Component {
       components = {},
       updateFilterByType,
     } = this.props;
+    const { icons = {} } = components;
 
     const Tooltip = components.Tooltip || MuiTooltip;
     const TableViewColComponent = components.TableViewCol || TableViewCol;
     const TableFilterComponent = components.TableFilter || TableFilter;
+    const SearchIconComponent = icons.SearchIcon || SearchIcon;
+    const DownloadIconComponent = icons.DownloadIcon || DownloadIcon;
+    const PrintIconComponent = icons.PrintIcon || PrintIcon;
+    const ViewColumnIconComponent = icons.ViewColumnIcon || ViewColumnIcon;
+    const FilterIconComponent = icons.FilterIcon || FilterIcon;
     const { search, downloadCsv, print, viewColumns, filterTable } = options.textLabels.toolbar;
     const { showSearch, searchText } = this.state;
 
     const filterPopoverExit = () => {
       this.setState({ hideFilterPopover: false });
-      this.setActiveIcon.bind(null);
+      this.setActiveIcon();
     };
 
     const closeFilterPopover = () => {
@@ -339,60 +344,67 @@ class TableToolbar extends React.Component {
           )}
         </div>
         <div className={options.responsive !== RESPONSIVE_FULL_WIDTH_NAME ? classes.actions : classes.fullWidthActions}>
-          {options.search && (
+          {!(options.search === false || options.search === 'false') && (
             <Tooltip title={search} disableFocusListener>
               <IconButton
                 aria-label={search}
                 data-testid={search + '-iconButton'}
                 buttonRef={el => (this.searchButton = el)}
                 classes={{ root: this.getActiveIcon(classes, 'search') }}
+                disabled={options.search === 'disabled'}
                 onClick={this.handleSearchIconClick}>
-                <SearchIcon />
+                <SearchIconComponent />
               </IconButton>
             </Tooltip>
           )}
-          {options.download && (
+          {!(options.download === false || options.download === 'false') && (
             <Tooltip title={downloadCsv}>
               <IconButton
                 data-testid={downloadCsv + '-iconButton'}
                 aria-label={downloadCsv}
                 classes={{ root: classes.icon }}
+                disabled={options.download === 'disabled'}
                 onClick={this.handleCSVDownload}>
-                <DownloadIcon />
+                <DownloadIconComponent />
               </IconButton>
             </Tooltip>
           )}
-          {options.print && (
+          {!(options.print === false || options.print === 'false') && (
             <span>
-              <ReactToPrint
-                trigger={() => (
-                  <span>
-                    <Tooltip title={print}>
-                      <IconButton
-                        data-testid={print + '-iconButton'}
-                        aria-label={print}
-                        classes={{ root: classes.icon }}>
-                        <PrintIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </span>
-                )}
-                content={() => this.props.tableRef()}
-              />
+              <ReactToPrint content={() => this.props.tableRef()}>
+                <PrintContextConsumer>
+                  {({ handlePrint }) => (
+                    <span>
+                      <Tooltip title={print}>
+                        <IconButton
+                          data-testid={print + '-iconButton'}
+                          aria-label={print}
+                          disabled={options.print === 'disabled'}
+                          onClick={handlePrint}
+                          classes={{ root: classes.icon }}>
+                          <PrintIconComponent />
+                        </IconButton>
+                      </Tooltip>
+                    </span>
+                  )}
+                </PrintContextConsumer>
+              </ReactToPrint>
             </span>
           )}
-          {options.viewColumns && (
+          {!(options.viewColumns === false || options.viewColumns === 'false') && (
             <Popover
               refExit={this.setActiveIcon.bind(null)}
               classes={{ closeIcon: classes.filterCloseIcon }}
+              hide={options.viewColumns === 'disabled'}
               trigger={
                 <Tooltip title={viewColumns} disableFocusListener>
                   <IconButton
                     data-testid={viewColumns + '-iconButton'}
                     aria-label={viewColumns}
                     classes={{ root: this.getActiveIcon(classes, 'viewcolumns') }}
+                    disabled={options.viewColumns === 'disabled'}
                     onClick={this.setActiveIcon.bind(null, 'viewcolumns')}>
-                    <ViewColumnIcon />
+                    <ViewColumnIconComponent />
                   </IconButton>
                 </Tooltip>
               }
@@ -408,10 +420,10 @@ class TableToolbar extends React.Component {
               }
             />
           )}
-          {options.filter && (
+          {!(options.filter === false || options.filter === 'false') && (
             <Popover
               refExit={filterPopoverExit}
-              hide={this.state.hideFilterPopover}
+              hide={this.state.hideFilterPopover || options.filter === 'disabled'}
               classes={{ paper: classes.filterPaper, closeIcon: classes.filterCloseIcon }}
               trigger={
                 <Tooltip title={filterTable} disableFocusListener>
@@ -419,8 +431,9 @@ class TableToolbar extends React.Component {
                     data-testid={filterTable + '-iconButton'}
                     aria-label={filterTable}
                     classes={{ root: this.getActiveIcon(classes, 'filter') }}
+                    disabled={options.filter === 'disabled'}
                     onClick={this.setActiveIcon.bind(null, 'filter')}>
-                    <FilterIcon />
+                    <FilterIconComponent />
                   </IconButton>
                 </Tooltip>
               }
@@ -440,7 +453,7 @@ class TableToolbar extends React.Component {
               }
             />
           )}
-          {options.customToolbar && options.customToolbar()}
+          {options.customToolbar && options.customToolbar({ displayData: this.props.displayData })}
         </div>
       </Toolbar>
     );

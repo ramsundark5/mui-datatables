@@ -1,6 +1,7 @@
 import Paper from '@material-ui/core/Paper';
-import { withStyles } from '@material-ui/core/styles';
 import MuiTable from '@material-ui/core/Table';
+import MuiTooltip from '@material-ui/core/Tooltip';
+import { withStyles } from '@material-ui/core/styles';
 import clsx from 'clsx';
 import assignwith from 'lodash.assignwith';
 import cloneDeep from 'lodash.clonedeep';
@@ -19,7 +20,6 @@ import DefaultTableHead from './components/TableHead';
 import DefaultTableResize from './components/TableResize';
 import DefaultTableToolbar from './components/TableToolbar';
 import DefaultTableToolbarSelect from './components/TableToolbarSelect';
-import MuiTooltip from '@material-ui/core/Tooltip';
 import getTextLabels from './textLabels';
 import { buildMap, getCollatorComparator, getPageValue, sortCompare, warnDeprecated, warnInfo } from './utils';
 import { DndProvider } from 'react-dnd';
@@ -123,7 +123,7 @@ class MUIDataTable extends React.Component {
           label: PropTypes.string,
           name: PropTypes.string.isRequired,
           options: PropTypes.shape({
-            display: PropTypes.oneOf(['true', 'false', 'excluded', 'always']),
+            display: PropTypes.oneOf(['true', 'false', 'excluded', 'always', true, false]),
             empty: PropTypes.bool,
             filter: PropTypes.bool,
             sort: PropTypes.bool,
@@ -181,7 +181,7 @@ class MUIDataTable extends React.Component {
       expandableRowsHeader: PropTypes.bool,
       expandableRowsOnClick: PropTypes.bool,
       disableToolbarSelect: PropTypes.bool,
-      download: PropTypes.bool,
+      download: PropTypes.oneOf([true, false, 'true', 'false', 'disabled']),
       downloadOptions: PropTypes.shape({
         filename: PropTypes.string,
         separator: PropTypes.string,
@@ -190,7 +190,8 @@ class MUIDataTable extends React.Component {
           useDisplayedRowsOnly: PropTypes.bool,
         }),
       }),
-      filter: PropTypes.bool,
+      filter: PropTypes.oneOf([true, false, 'true', 'false', 'disabled']),
+      filterArrayFullMatch: PropTypes.bool,
       filterType: PropTypes.oneOf(['dropdown', 'checkbox', 'multiselect', 'textField', 'custom']),
       fixedHeader: PropTypes.bool,
       fixedSelectColumn: PropTypes.bool,
@@ -214,7 +215,7 @@ class MUIDataTable extends React.Component {
       onTableInit: PropTypes.func,
       page: PropTypes.number,
       pagination: PropTypes.bool,
-      print: PropTypes.bool,
+      print: PropTypes.oneOf([true, false, 'true', 'false', 'disabled']),
       searchProps: PropTypes.object,
       selectableRows: PropTypes.oneOfType([PropTypes.bool, PropTypes.oneOf(['none', 'single', 'multiple'])]),
       selectableRowsHeader: PropTypes.bool,
@@ -232,7 +233,7 @@ class MUIDataTable extends React.Component {
       rowsPerPage: PropTypes.number,
       rowsPerPageOptions: PropTypes.array,
       rowsSelected: PropTypes.array,
-      search: PropTypes.bool,
+      search: PropTypes.oneOf([true, false, 'true', 'false', 'disabled']),
       searchOpen: PropTypes.bool,
       searchPlaceholder: PropTypes.string,
       searchText: PropTypes.string,
@@ -245,7 +246,7 @@ class MUIDataTable extends React.Component {
       setTableProps: PropTypes.func,
       sort: PropTypes.bool,
       sortOrder: PropTypes.object,
-      viewColumns: PropTypes.bool,
+      viewColumns: PropTypes.oneOf([true, false, 'true', 'false', 'disabled']),
     }),
     /** Pass and use className to style MUIDataTable as desired */
     className: PropTypes.string,
@@ -267,6 +268,7 @@ class MUIDataTable extends React.Component {
       TableToolbar: DefaultTableToolbar,
       TableToolbarSelect: DefaultTableToolbarSelect,
       Tooltip: MuiTooltip,
+      icons: {},
     },
   };
 
@@ -395,6 +397,7 @@ class MUIDataTable extends React.Component {
     expandableRowsHeader: true,
     expandableRowsOnClick: false,
     filter: true,
+    filterArrayFullMatch: true,
     filterType: 'dropdown',
     fixedHeader: true,
     fixedSelectColumn: true,
@@ -1022,13 +1025,23 @@ class MUIDataTable extends React.Component {
         ) {
           isFiltered = true;
         } else if (filterType !== 'textField' && Array.isArray(columnValue)) {
-          //true if every filterVal exists in columnVal, false otherwise
-          const isFullMatch = filterVal.every(el => {
-            return columnValue.indexOf(el) >= 0;
-          });
-          //if it is not a fullMatch, filter row out
-          if (!isFullMatch) {
-            isFiltered = true;
+          if (options.filterArrayFullMatch) {
+            //true if every filterVal exists in columnVal, false otherwise
+            const isFullMatch = filterVal.every(el => {
+              return columnValue.indexOf(el) >= 0;
+            });
+            //if it is not a fullMatch, filter row out
+            if (!isFullMatch) {
+              isFiltered = true;
+            }
+          } else {
+            const isAnyMatch = filterVal.some(el => {
+              return columnValue.indexOf(el) >= 0;
+            });
+            //if no value matches, filter row out
+            if (!isAnyMatch) {
+              isFiltered = true;
+            }
           }
         }
       }
@@ -1935,7 +1948,16 @@ class MUIDataTable extends React.Component {
       classes,
       className,
       title,
-      components: { TableBody, TableFilterList, TableFooter, TableHead, TableResize, TableToolbar, TableToolbarSelect },
+      components: {
+        TableBody,
+        TableFilterList,
+        TableFooter,
+        TableHead,
+        TableResize,
+        TableToolbar,
+        TableToolbarSelect,
+        DragDropBackend = HTML5Backend,
+      },
     } = this.props;
     const {
       announceText,
@@ -2098,69 +2120,79 @@ class MUIDataTable extends React.Component {
               tableId={this.options.tableId}
             />
           )}
-          <DndProvider backend={HTML5Backend} {...dndProps}>
-            <MuiTable
-              ref={el => (this.tableRef = el)}
-              tabIndex={'0'}
-              role={'grid'}
-              className={tableClassNames}
-              {...tableProps}>
-              <caption className={classes.caption}>{title}</caption>
-              <TableHeadComponent
-                columns={columns}
-                activeColumn={activeColumn}
-                data={displayData}
-                count={rowCount}
-                page={page}
-                rowsPerPage={rowsPerPage}
-                selectedRows={selectedRows}
-                selectRowUpdate={this.selectRowUpdate}
-                toggleSort={this.toggleSortColumn}
-                setCellRef={this.setHeadCellRef}
-                expandedRows={expandedRows}
-                areAllRowsExpanded={this.areAllRowsExpanded}
-                toggleAllExpandableRows={this.toggleAllExpandableRows}
-                options={this.options}
-                sortOrder={sortOrder}
-                columnOrder={columnOrder}
-                updateColumnOrder={this.updateColumnOrder}
-                draggableHeadCellRefs={this.draggableHeadCellRefs}
-                tableRef={this.getTableContentRef}
-                tableId={this.options.tableId}
-                timers={this.timers}
-                components={this.props.components}
-              />
-              <TableBodyComponent
-                data={displayData}
-                groupingData={this.state.groupingData}
-                grouping={this.state.grouping}
-                isGroupExpanded={this.isGroupExpanded}
-                count={rowCount}
-                columns={columns}
-                page={page}
-                rowsPerPage={rowsPerPage}
-                selectedRows={selectedRows}
-                selectRowUpdate={this.selectRowUpdate}
-                previousSelectedRow={previousSelectedRow}
-                expandedRows={expandedRows}
-                toggleExpandRow={this.toggleExpandRow}
-                options={this.options}
-                columnOrder={columnOrder}
-                filterList={filterList}
-                components={this.props.components}
-                tableId={this.options.tableId}
-              />
-              {this.options.customTableBodyFooterRender
-                ? this.options.customTableBodyFooterRender({
-                    data: displayData,
-                    count: rowCount,
-                    columns,
-                    selectedRows,
-                    selectableRows: this.options.selectableRows,
-                  })
-                : null}
-            </MuiTable>
-          </DndProvider>
+          {(() => {
+            const components = (
+              <MuiTable
+                ref={el => (this.tableRef = el)}
+                tabIndex={'0'}
+                role={'grid'}
+                className={tableClassNames}
+                {...tableProps}>
+                <caption className={classes.caption}>{title}</caption>
+                <TableHeadComponent
+                  columns={columns}
+                  activeColumn={activeColumn}
+                  data={displayData}
+                  count={rowCount}
+                  page={page}
+                  rowsPerPage={rowsPerPage}
+                  selectedRows={selectedRows}
+                  selectRowUpdate={this.selectRowUpdate}
+                  toggleSort={this.toggleSortColumn}
+                  setCellRef={this.setHeadCellRef}
+                  expandedRows={expandedRows}
+                  areAllRowsExpanded={this.areAllRowsExpanded}
+                  toggleAllExpandableRows={this.toggleAllExpandableRows}
+                  options={this.options}
+                  sortOrder={sortOrder}
+                  columnOrder={columnOrder}
+                  updateColumnOrder={this.updateColumnOrder}
+                  draggableHeadCellRefs={this.draggableHeadCellRefs}
+                  tableRef={this.getTableContentRef}
+                  tableId={this.options.tableId}
+                  timers={this.timers}
+                  components={this.props.components}
+                />
+                <TableBodyComponent
+                  data={displayData}
+                  groupingData={this.state.groupingData}
+                  grouping={this.state.grouping}
+                  count={rowCount}
+                  columns={columns}
+                  page={page}
+                  rowsPerPage={rowsPerPage}
+                  selectedRows={selectedRows}
+                  selectRowUpdate={this.selectRowUpdate}
+                  previousSelectedRow={previousSelectedRow}
+                  expandedRows={expandedRows}
+                  toggleExpandRow={this.toggleExpandRow}
+                  options={this.options}
+                  columnOrder={columnOrder}
+                  filterList={filterList}
+                  components={this.props.components}
+                  tableId={this.options.tableId}
+                />
+                {this.options.customTableBodyFooterRender
+                  ? this.options.customTableBodyFooterRender({
+                      data: displayData,
+                      count: rowCount,
+                      columns,
+                      selectedRows,
+                      selectableRows: this.options.selectableRows,
+                    })
+                  : null}
+              </MuiTable>
+            );
+            if (DragDropBackend) {
+              return (
+                <DndProvider backend={DragDropBackend} {...dndProps}>
+                  {components}
+                </DndProvider>
+              );
+            }
+
+            return components;
+          })()}
         </div>
         <TableFooterComponent
           options={this.options}
